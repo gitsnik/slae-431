@@ -7,3 +7,4 @@ This is the repository used for my exam assignments for the SecurityTube Linux A
 
 The majority of the code here is actually version controlled in my private SVN repository and exported into github when it is complete.
 
+All code in this repository is free for use providing attribution to the original author is given. Pick your Creative Commons License.
