@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 
-unsigned char rifle[] = \
+unsigned char egghunter[] = \
+// enter egghunter here
+"";
 
 unsigned char rubbish1[] = "They said I probably shouldn't be a surgeon.";
 
@@ -15,10 +17,10 @@ unsigned char restofmem[] = "I am bender please insert girder";
 
 void main()
 {
-	printf("Rifle: [%d]\n", strlen(rifle));
+	printf("Rifle: [%d]\n", strlen(egghunter));
 	printf("Code: [%d]\n", strlen(code));
 
-	int (*ret)() = (int(*)())rifle;
+	int (*ret)() = (int(*)())egghunter;
 
 	ret();
 }
